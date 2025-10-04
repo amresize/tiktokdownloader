@@ -74,9 +74,9 @@
         const statusDiv = document.getElementById('status');
         const resultDiv = document.getElementById('result');
 
-        // UPDATED API ENDPOINT: Using a different service that is currently more stable.
-        // Public APIs can be unreliable, so this may need to be updated in the future.
-        const API_ENDPOINT = 'https://tikcd.com/api/ajax_search';
+        // UPDATED API ENDPOINT: Using another service.
+        // These free APIs are unstable. If this one fails, it may need to be replaced again.
+        const API_ENDPOINT = 'https://savetik.co/api/ajaxSearch';
 
         downloadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -91,13 +91,13 @@
             showSpinner();
 
             try {
-                // The API expects a POST request with the URL in the body
+                // This API expects a POST request with the URL in a 'q' parameter.
                 const response = await fetch(API_ENDPOINT, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded'
                     },
-                    body: `query=${encodeURIComponent(videoUrl)}`
+                    body: `q=${encodeURIComponent(videoUrl)}&lang=en`
                 });
 
                 if (!response.ok) {
@@ -106,8 +106,8 @@
 
                 const data = await response.json();
                 
-                // The API returns HTML content in the 'data' field when successful
-                if (data.status === 'success' && data.data) {
+                // The new API returns HTML content in the 'data' field when the status is 'ok'
+                if (data.status === 'ok' && data.data) {
                     displayResults(data.data);
                 } else {
                     throw new Error(data.mess || 'Could not fetch video. The URL might be invalid, private, or the service is temporarily down.');
@@ -141,14 +141,37 @@
 
         function displayResults(htmlContent) {
             resultDiv.classList.remove('hidden');
-            resultDiv.innerHTML = htmlContent;
+            
+            // Create a temporary container to parse the HTML string
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlContent;
 
-            // The new API returns a full HTML block, so we just inject it.
-            // For better styling and consistency, we can adjust the classes of the returned buttons.
-            const downloadButtons = resultDiv.querySelectorAll('a.button.download-button');
-            downloadButtons.forEach(button => {
-                button.classList.add('block', 'w-full', 'md:w-auto', 'bg-green-500', 'hover:bg-green-600', 'text-white', 'font-bold', 'py-3', 'px-6', 'rounded-lg', 'transition-transform', 'transform', 'hover:scale-105', 'mb-3', 'text-center');
-                button.classList.remove('button', 'download-button'); // remove original classes
+            // Extract the parts we want to display to avoid injecting unwanted scripts or styles
+            const thumbnail = tempDiv.querySelector('.video-thumbnail-img')?.outerHTML || '';
+            const title = tempDiv.querySelector('.video-title')?.outerHTML || '';
+            const author = tempDiv.querySelector('.video-author-name')?.outerHTML || '';
+            const downloadItems = tempDiv.querySelector('.download-items')?.outerHTML || '';
+
+            // Construct clean HTML to inject into our page
+            resultDiv.innerHTML = `
+                <div class="bg-gray-700/50 rounded-lg p-6 flex flex-col items-center gap-4">
+                    ${thumbnail}
+                    <div class="text-center">
+                        ${author}
+                        ${title}
+                    </div>
+                    <div class="w-full flex flex-col items-center gap-3 mt-4">
+                         ${downloadItems}
+                    </div>
+                </div>`;
+            
+            // The new API returns a full HTML block. We need to find the new buttons and style them.
+            const downloadLinks = resultDiv.querySelectorAll('.download-items a');
+            downloadLinks.forEach(link => {
+                link.className = ''; // Clear existing classes
+                link.classList.add('block', 'w-full', 'max-w-xs', 'bg-green-500', 'hover:bg-green-600', 'text-white', 'font-bold', 'py-3', 'px-6', 'rounded-lg', 'transition-transform', 'transform', 'hover:scale-105', 'text-center', 'no-underline');
+                link.innerHTML = `<i class="fas fa-download mr-2"></i> ${link.textContent}`;
+                link.target = "_blank"; // Ensure download links open in a new tab
             });
         }
 

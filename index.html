@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -74,9 +74,9 @@
         const statusDiv = document.getElementById('status');
         const resultDiv = document.getElementById('result');
 
-        // This is an example API endpoint. Public APIs can be unstable.
-        // This acts as a proxy to avoid CORS issues that would happen if we fetched TikTok directly.
-        const API_ENDPOINT = 'https://lovetik.com/api/ajax/search';
+        // UPDATED API ENDPOINT: Using a different service that is currently more stable.
+        // Public APIs can be unreliable, so this may need to be updated in the future.
+        const API_ENDPOINT = 'https://tikcd.com/api/ajax_search';
 
         downloadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -101,18 +101,20 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error('Network response was not ok.');
+                    throw new Error('Network response was not ok. The API might be down.');
                 }
 
                 const data = await response.json();
-
-                if (data.status === 'ok' && data.links) {
-                    displayResults(data);
+                
+                // The API returns HTML content in the 'data' field when successful
+                if (data.status === 'success' && data.data) {
+                    displayResults(data.data);
                 } else {
-                    throw new Error(data.mess || 'Could not fetch video information. The URL might be invalid or private.');
+                    throw new Error(data.mess || 'Could not fetch video. The URL might be invalid, private, or the service is temporarily down.');
                 }
 
             } catch (error) {
+                console.error('Error fetching video:', error);
                 showError(error.message);
             } finally {
                 hideSpinner();
@@ -137,54 +139,20 @@
             resultDiv.classList.add('hidden');
         }
 
-        function displayResults(data) {
+        function displayResults(htmlContent) {
             resultDiv.classList.remove('hidden');
+            resultDiv.innerHTML = htmlContent;
 
-            const authorHtml = data.author_name ? `<p class="text-gray-400 text-lg">by ${data.author_name}</p>` : '';
-            const descHtml = data.desc ? `<p class="mt-2 text-gray-300">"${data.desc}"</p>` : '';
-            
-            // Filter for high-quality, no-watermark video links
-            const noWatermarkLink = data.links.find(link => link.vt === 'nw');
-            const audioLink = data.links.find(link => link.f === 'mp3');
-
-            let buttonsHtml = '';
-            if (noWatermarkLink) {
-                 buttonsHtml += `
-                    <a href="${noWatermarkLink.a}" target="_blank" download class="block w-full md:w-auto bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 mb-3 text-center">
-                        <i class="fas fa-video mr-2"></i> Download Video (No Watermark)
-                    </a>`;
-            } else {
-                // Fallback to first available mp4 link if no-watermark version isn't found
-                const firstVideo = data.links.find(link => link.f === 'mp4');
-                if (firstVideo) {
-                    buttonsHtml += `
-                        <a href="${firstVideo.a}" target="_blank" download class="block w-full md:w-auto bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 mb-3 text-center">
-                            <i class="fas fa-video mr-2"></i> Download Video
-                        </a>`;
-                }
-            }
-
-            if (audioLink) {
-                buttonsHtml += `
-                    <a href="${audioLink.a}" target="_blank" download class="block w-full md:w-auto bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 text-center">
-                        <i class="fas fa-music mr-2"></i> Download Audio Only (MP3)
-                    </a>`;
-            }
-
-            resultDiv.innerHTML = `
-                <div class="bg-gray-700/50 rounded-lg p-6 flex flex-col md:flex-row items-center gap-6">
-                    <img src="${data.cover}" alt="Video Thumbnail" class="w-32 h-32 object-cover rounded-lg shadow-md">
-                    <div class="flex-grow text-center md:text-left">
-                        ${authorHtml}
-                        ${descHtml}
-                    </div>
-                </div>
-                <div class="mt-6 flex flex-col md:flex-row justify-center gap-4">
-                    ${buttonsHtml}
-                </div>
-            `;
+            // The new API returns a full HTML block, so we just inject it.
+            // For better styling and consistency, we can adjust the classes of the returned buttons.
+            const downloadButtons = resultDiv.querySelectorAll('a.button.download-button');
+            downloadButtons.forEach(button => {
+                button.classList.add('block', 'w-full', 'md:w-auto', 'bg-green-500', 'hover:bg-green-600', 'text-white', 'font-bold', 'py-3', 'px-6', 'rounded-lg', 'transition-transform', 'transform', 'hover:scale-105', 'mb-3', 'text-center');
+                button.classList.remove('button', 'download-button'); // remove original classes
+            });
         }
 
     </script>
 </body>
 </html>
+

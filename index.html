@@ -74,8 +74,8 @@
         const statusDiv = document.getElementById('status');
         const resultDiv = document.getElementById('result');
 
-        // NEW API ENDPOINT: Switched to tikmate.app for better stability.
-        const API_ENDPOINT = 'https://tikmate.app/abc?url=dl';
+        // NEW, MORE RELIABLE API: This API returns JSON, which is much more stable than parsing HTML.
+        const API_ENDPOINT = 'https://co.wuk.sh/api/json';
 
         downloadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -97,25 +97,27 @@
             showSpinner();
 
             try {
-                // This API expects the URL in a parameter named 'url'
                 const response = await fetch(API_ENDPOINT, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
                     },
-                    body: `url=${encodeURIComponent(videoUrl)}`
+                    body: JSON.stringify({
+                        url: videoUrl
+                    })
                 });
 
                 if (!response.ok) {
-                    throw new Error('Network response was not ok. The service might be down.');
+                    throw new Error('The downloader service returned an error. It might be temporarily down.');
                 }
 
-                const htmlContent = await response.text();
-                displayResults(htmlContent);
+                const data = await response.json();
+                displayResults(data);
 
             } catch (error) {
                 console.error('Error fetching video:', error);
-                showError('An unexpected error occurred. The service might be temporarily unavailable.');
+                showError(error.message || 'An unexpected error occurred.');
             } finally {
                 hideSpinner();
             }
@@ -139,64 +141,38 @@
             resultDiv.classList.add('hidden');
         }
 
-        // REWRITTEN displayResults function to parse the new API response from tikmate.app
-        function displayResults(htmlContent) {
+        // REWRITTEN displayResults to handle a clean JSON response
+        function displayResults(data) {
+            if (data.status === 'error') {
+                showError(data.text || 'Could not process this video link.');
+                return;
+            }
+            
+            // The API might return 'stream' for videos, which is what we want.
+            if (data.status !== 'stream' && data.status !== 'success') {
+                showError('The API returned an unexpected response. Please try again.');
+                return;
+            }
+            
             resultDiv.classList.remove('hidden');
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = htmlContent;
-
-            const downloadButtonsContainer = tempDiv.querySelector('.tik-mate-dl-area-buttons');
-            
-            if (!downloadButtonsContainer) {
-                showError('Could not process this video. It may be private, deleted, or the URL is incorrect.');
-                return;
-            }
-
-            const downloadLinks = downloadButtonsContainer.querySelectorAll('a');
-            
-            if (downloadLinks.length === 0) {
-                showError('No download links found in the response.');
-                return;
-            }
-            
-            const thumbnail = tempDiv.querySelector('.video-info img')?.outerHTML || '';
-            const title = tempDiv.querySelector('.video-info p')?.outerHTML || '';
 
             const linksContainer = document.createElement('div');
             linksContainer.className = 'w-full flex flex-col items-center gap-3 mt-4';
             
-            // The first link is typically the main video without a watermark.
-            const mainDownloadLink = downloadLinks[0];
             const newLink = document.createElement('a');
-            newLink.href = mainDownloadLink.href;
+            newLink.href = data.url; // The direct download URL from the JSON response
             newLink.target = '_blank';
             newLink.rel = 'noopener noreferrer';
             newLink.className = 'block w-full max-w-xs bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 text-center no-underline';
-            newLink.innerHTML = `<i class="fas fa-video mr-2"></i> Download Video (No Watermark)`;
+            newLink.innerHTML = `<i class="fas fa-video mr-2"></i> Download Video`;
             linksContainer.appendChild(newLink);
-
-            // Sometimes there's a second HD link
-            if (downloadLinks.length > 1 && downloadLinks[1].textContent.includes('HD')) {
-                 const hdLink = document.createElement('a');
-                 hdLink.href = downloadLinks[1].href;
-                 hdLink.target = '_blank';
-                 hdLink.rel = 'noopener noreferrer';
-                 hdLink.className = 'block w-full max-w-xs bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 text-center no-underline';
-                 hdLink.innerHTML = `<i class="fas fa-film mr-2"></i> Download in HD`;
-                 linksContainer.appendChild(hdLink);
-            }
-
 
             resultDiv.innerHTML = `
                 <div class="bg-gray-700/50 rounded-lg p-6 flex flex-col items-center gap-4">
-                    ${thumbnail}
-                    <div class="text-center font-semibold">
-                        ${title}
-                    </div>
+                     <p class="text-lg font-semibold text-center">Your video is ready!</p>
                     ${linksContainer.outerHTML}
                 </div>`;
         }
-
     </script>
 </body>
 </html>

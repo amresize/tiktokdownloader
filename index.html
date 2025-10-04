@@ -74,8 +74,8 @@
         const statusDiv = document.getElementById('status');
         const resultDiv = document.getElementById('result');
 
-        // NEW API ENDPOINT: Switched to a different service for better reliability.
-        const API_ENDPOINT = 'https://ssstik.io/abc?url=dl';
+        // UPDATED API: Using a completely different service (snaptik.app)
+        const API_ENDPOINT = 'https://snaptik.app/abc.php';
 
         downloadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -97,13 +97,13 @@
             showSpinner();
 
             try {
-                // This API expects a POST request and returns HTML content directly.
+                // This API expects the URL in a parameter named 'url'
                 const response = await fetch(API_ENDPOINT, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded'
                     },
-                    body: `id=${encodeURIComponent(videoUrl)}&locale=en`
+                    body: `url=${encodeURIComponent(videoUrl)}`
                 });
 
                 if (!response.ok) {
@@ -115,7 +115,7 @@
 
             } catch (error) {
                 console.error('Error fetching video:', error);
-                showError(error.message);
+                showError('An unexpected error occurred. The service might be temporarily unavailable.');
             } finally {
                 hideSpinner();
             }
@@ -139,42 +139,54 @@
             resultDiv.classList.add('hidden');
         }
 
+        // REWRITTEN displayResults function to parse the new API response
         function displayResults(htmlContent) {
             resultDiv.classList.remove('hidden');
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = htmlContent;
 
-            const downloadLinks = tempDiv.querySelectorAll('.download_link');
-
-            // If no download links are found in the response, the API failed.
-            if (downloadLinks.length === 0) {
-                const errorMessage = tempDiv.querySelector('h2')?.textContent || 'Could not fetch video. It might be private, deleted, or the URL is incorrect.';
-                showError(errorMessage);
+            const downloadButtons = tempDiv.querySelectorAll('.download-btn');
+            
+            // Check if the expected download buttons exist. If not, the API failed.
+            if (downloadButtons.length === 0) {
+                showError('Could not process this video. It may be private, deleted, or the URL is incorrect.');
                 return;
             }
 
-            const thumbnail = tempDiv.querySelector('.result_overlay img')?.outerHTML || '';
-            const title = tempDiv.querySelector('.maintext')?.outerHTML || '';
-            
+            const thumbnail = tempDiv.querySelector('.video-info img')?.outerHTML || '';
+            const title = tempDiv.querySelector('.video-info p')?.outerHTML || '';
+
             const linksContainer = document.createElement('div');
             linksContainer.className = 'w-full flex flex-col items-center gap-3 mt-4';
+            
+            let videoLinkFound = false;
 
-            downloadLinks.forEach(link => {
-                const newLink = document.createElement('a');
-                newLink.href = link.href;
-                newLink.target = '_blank';
-                newLink.rel = 'noopener noreferrer'; // Security best practice
+            downloadButtons.forEach(button => {
+                // The actual link is the onclick attribute value, which we need to extract.
+                const onclickAttr = button.getAttribute('onclick');
+                if (!onclickAttr) return;
 
-                if (link.textContent.includes('Without watermark')) {
+                // Extract URL from something like "window.open('https://...')"
+                const urlMatch = onclickAttr.match(/'([^']+)'/);
+                if (urlMatch && urlMatch[1]) {
+                    const href = urlMatch[1];
+
+                    const newLink = document.createElement('a');
+                    newLink.href = href;
+                    newLink.target = '_blank';
+                    newLink.rel = 'noopener noreferrer';
                     newLink.className = 'block w-full max-w-xs bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 text-center no-underline';
                     newLink.innerHTML = `<i class="fas fa-video mr-2"></i> Download Video`;
+                    
                     linksContainer.appendChild(newLink);
-                } else if (link.textContent.includes('Download MP3')) {
-                     newLink.className = 'block w-full max-w-xs bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 text-center no-underline';
-                    newLink.innerHTML = `<i class="fas fa-music mr-2"></i> Download Audio (MP3)`;
-                    linksContainer.appendChild(newLink);
+                    videoLinkFound = true;
                 }
             });
+
+            if (!videoLinkFound) {
+                 showError('Could not find a valid download link in the response.');
+                 return;
+            }
 
             resultDiv.innerHTML = `
                 <div class="bg-gray-700/50 rounded-lg p-6 flex flex-col items-center gap-4">

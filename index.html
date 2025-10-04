@@ -1,0 +1,190 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TikTok Video Downloader</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Simple spinner animation */
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #09f;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen">
+    <div class="container mx-auto p-4 max-w-2xl w-full">
+        <div class="bg-gray-800 rounded-2xl shadow-2xl p-6 md:p-8">
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <i class="fab fa-tiktok text-5xl mb-4 text-cyan-400"></i>
+                <h1 class="text-3xl md:text-4xl font-bold">TikTok Video Downloader</h1>
+                <p class="text-gray-400 mt-2">Paste a TikTok video link below to download it without a watermark.</p>
+            </div>
+
+            <!-- Input Form -->
+            <form id="download-form" class="flex flex-col sm:flex-row gap-4">
+                <input 
+                    id="tiktok-url"
+                    type="text" 
+                    placeholder="Paste TikTok URL here..." 
+                    class="flex-grow bg-gray-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500 w-full"
+                    required
+                >
+                <button 
+                    type="submit" 
+                    class="bg-cyan-500 hover:bg-cyan-600 text-gray-900 font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 flex items-center justify-center"
+                >
+                    <i class="fas fa-download mr-2"></i>
+                    <span>Download</span>
+                </button>
+            </form>
+
+            <!-- Status/Result Area -->
+            <div id="status" class="mt-8 text-center">
+                <!-- Spinner will be shown here -->
+            </div>
+            <div id="result" class="mt-8 hidden">
+                <!-- Results will be populated here -->
+            </div>
+        </div>
+        
+        <!-- Disclaimer Footer -->
+        <footer class="text-center mt-8 text-gray-500 text-sm">
+            <p>This tool is for personal use only. Please respect the intellectual property rights of the content creators.</p>
+        </footer>
+    </div>
+
+    <script>
+        const downloadForm = document.getElementById('download-form');
+        const urlInput = document.getElementById('tiktok-url');
+        const statusDiv = document.getElementById('status');
+        const resultDiv = document.getElementById('result');
+
+        // This is an example API endpoint. Public APIs can be unstable.
+        // This acts as a proxy to avoid CORS issues that would happen if we fetched TikTok directly.
+        const API_ENDPOINT = 'https://lovetik.com/api/ajax/search';
+
+        downloadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const videoUrl = urlInput.value.trim();
+
+            if (!videoUrl) {
+                showError('Please paste a TikTok URL.');
+                return;
+            }
+
+            clearResults();
+            showSpinner();
+
+            try {
+                // The API expects a POST request with the URL in the body
+                const response = await fetch(API_ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: `query=${encodeURIComponent(videoUrl)}`
+                });
+
+                if (!response.ok) {
+                    throw new Error('Network response was not ok.');
+                }
+
+                const data = await response.json();
+
+                if (data.status === 'ok' && data.links) {
+                    displayResults(data);
+                } else {
+                    throw new Error(data.mess || 'Could not fetch video information. The URL might be invalid or private.');
+                }
+
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                hideSpinner();
+            }
+        });
+        
+        function showSpinner() {
+            statusDiv.innerHTML = '<div class="spinner mx-auto"></div>';
+        }
+
+        function hideSpinner() {
+            statusDiv.innerHTML = '';
+        }
+
+        function showError(message) {
+            statusDiv.innerHTML = `<p class="text-red-400 bg-red-900/50 p-3 rounded-lg">${message}</p>`;
+        }
+        
+        function clearResults() {
+            statusDiv.innerHTML = '';
+            resultDiv.innerHTML = '';
+            resultDiv.classList.add('hidden');
+        }
+
+        function displayResults(data) {
+            resultDiv.classList.remove('hidden');
+
+            const authorHtml = data.author_name ? `<p class="text-gray-400 text-lg">by ${data.author_name}</p>` : '';
+            const descHtml = data.desc ? `<p class="mt-2 text-gray-300">"${data.desc}"</p>` : '';
+            
+            // Filter for high-quality, no-watermark video links
+            const noWatermarkLink = data.links.find(link => link.vt === 'nw');
+            const audioLink = data.links.find(link => link.f === 'mp3');
+
+            let buttonsHtml = '';
+            if (noWatermarkLink) {
+                 buttonsHtml += `
+                    <a href="${noWatermarkLink.a}" target="_blank" download class="block w-full md:w-auto bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 mb-3 text-center">
+                        <i class="fas fa-video mr-2"></i> Download Video (No Watermark)
+                    </a>`;
+            } else {
+                // Fallback to first available mp4 link if no-watermark version isn't found
+                const firstVideo = data.links.find(link => link.f === 'mp4');
+                if (firstVideo) {
+                    buttonsHtml += `
+                        <a href="${firstVideo.a}" target="_blank" download class="block w-full md:w-auto bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 mb-3 text-center">
+                            <i class="fas fa-video mr-2"></i> Download Video
+                        </a>`;
+                }
+            }
+
+            if (audioLink) {
+                buttonsHtml += `
+                    <a href="${audioLink.a}" target="_blank" download class="block w-full md:w-auto bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 text-center">
+                        <i class="fas fa-music mr-2"></i> Download Audio Only (MP3)
+                    </a>`;
+            }
+
+            resultDiv.innerHTML = `
+                <div class="bg-gray-700/50 rounded-lg p-6 flex flex-col md:flex-row items-center gap-6">
+                    <img src="${data.cover}" alt="Video Thumbnail" class="w-32 h-32 object-cover rounded-lg shadow-md">
+                    <div class="flex-grow text-center md:text-left">
+                        ${authorHtml}
+                        ${descHtml}
+                    </div>
+                </div>
+                <div class="mt-6 flex flex-col md:flex-row justify-center gap-4">
+                    ${buttonsHtml}
+                </div>
+            `;
+        }
+
+    </script>
+</body>
+</html>

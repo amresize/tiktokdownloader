@@ -36,7 +36,7 @@
             </div>
 
             <!-- Input Form -->
-            <form id="download-form" class="flex flex-col sm:flex-row gap-4">
+            <form id="download-form" class="flex flex-col sm-flex-row gap-4">
                 <input 
                     id="tiktok-url"
                     type="text" 
@@ -74,7 +74,7 @@
         const statusDiv = document.getElementById('status');
         const resultDiv = document.getElementById('result');
 
-        // NEW, MORE RELIABLE API: This API returns JSON, which is much more stable than parsing HTML.
+        // This API returns JSON, which is much more stable than parsing HTML.
         const API_ENDPOINT = 'https://co.wuk.sh/api/json';
 
         downloadForm.addEventListener('submit', async (e) => {
@@ -104,12 +104,23 @@
                         'Accept': 'application/json'
                     },
                     body: JSON.stringify({
-                        url: videoUrl
+                        url: videoUrl,
+                        isNoTTWatermark: true // Request no watermark version
                     })
                 });
-
+                
+                // NEW: More detailed error checking based on the HTTP response status.
                 if (!response.ok) {
-                    throw new Error('The downloader service returned an error. It might be temporarily down.');
+                    let errorText = `Error: ${response.status} ${response.statusText}.`;
+                    try {
+                        const errorData = await response.json();
+                        if (errorData && errorData.text) {
+                            errorText = errorData.text; // Use the API's specific error message if available.
+                        }
+                    } catch (jsonError) {
+                         // The error response wasn't valid JSON, stick with the status text.
+                    }
+                    throw new Error(errorText);
                 }
 
                 const data = await response.json();
@@ -141,16 +152,32 @@
             resultDiv.classList.add('hidden');
         }
 
-        // REWRITTEN displayResults to handle a clean JSON response
+        // REWRITTEN displayResults to be more robust and handle more API response types.
         function displayResults(data) {
             if (data.status === 'error') {
                 showError(data.text || 'Could not process this video link.');
                 return;
             }
             
-            // The API might return 'stream' for videos, which is what we want.
-            if (data.status !== 'stream' && data.status !== 'success') {
+            let downloadUrl = data.url;
+
+            // NEW: Handle cases where the API returns a 'picker' for multiple formats.
+            if (data.status === 'picker') {
+                // Find the first video URL without a watermark.
+                const videoOption = data.picker.find(item => item.type === 'video' && item.label && item.label.toLowerCase().includes('no watermark'));
+                if (videoOption && videoOption.url) {
+                    downloadUrl = videoOption.url;
+                } else if (data.picker.length > 0) {
+                    // Fallback to the first available URL if no ideal one is found.
+                    downloadUrl = data.picker[0].url;
+                }
+            } else if (data.status !== 'stream' && data.status !== 'success') {
                 showError('The API returned an unexpected response. Please try again.');
+                return;
+            }
+
+            if (!downloadUrl) {
+                showError('Could not find a valid download URL in the API response.');
                 return;
             }
             
@@ -160,7 +187,7 @@
             linksContainer.className = 'w-full flex flex-col items-center gap-3 mt-4';
             
             const newLink = document.createElement('a');
-            newLink.href = data.url; // The direct download URL from the JSON response
+            newLink.href = downloadUrl; // The direct download URL from the JSON response
             newLink.target = '_blank';
             newLink.rel = 'noopener noreferrer';
             newLink.className = 'block w-full max-w-xs bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 text-center no-underline';
@@ -169,7 +196,8 @@
 
             resultDiv.innerHTML = `
                 <div class="bg-gray-700/50 rounded-lg p-6 flex flex-col items-center gap-4">
-                     <p class="text-lg font-semibold text-center">Your video is ready!</p>
+                     <p class="text-lg font-semibold text-center">${data.text || 'Your video is ready!'}</p>
+                    <img src="${data.thumb}" class="rounded-lg max-w-xs w-full" alt="Video Thumbnail">
                     ${linksContainer.outerHTML}
                 </div>`;
         }

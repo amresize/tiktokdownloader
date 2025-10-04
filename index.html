@@ -74,13 +74,13 @@
         const statusDiv = document.getElementById('status');
         const resultDiv = document.getElementById('result');
 
-        const API_ENDPOINT = 'https://savetik.co/api/ajaxSearch';
+        // NEW API ENDPOINT: Switched to a different service for better reliability.
+        const API_ENDPOINT = 'https://ssstik.io/abc?url=dl';
 
         downloadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const videoUrl = urlInput.value.trim();
             
-            // Regex to check for a valid TikTok URL format. This handles standard and shortened URLs.
             const tiktokUrlRegex = /^(https?:\/\/)?(www\.)?(tiktok\.com\/.*\/video\/\d+|vm\.tiktok\.com\/[a-zA-Z0-9]+)/;
 
             if (!videoUrl) {
@@ -88,7 +88,6 @@
                 return;
             }
             
-            // NEW: Validate the URL format before sending the request to prevent unnecessary API calls with bad data.
             if (!tiktokUrlRegex.test(videoUrl)) {
                 showError('That doesn\'t look like a valid TikTok URL. Please copy the full link from the share button.');
                 return;
@@ -98,26 +97,21 @@
             showSpinner();
 
             try {
-                // This API expects a POST request with the URL in a 'q' parameter.
+                // This API expects a POST request and returns HTML content directly.
                 const response = await fetch(API_ENDPOINT, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded'
                     },
-                    body: `q=${encodeURIComponent(videoUrl)}&lang=en`
+                    body: `id=${encodeURIComponent(videoUrl)}&locale=en`
                 });
 
                 if (!response.ok) {
-                    throw new Error('Network response was not ok. The API might be down.');
+                    throw new Error('Network response was not ok. The service might be down.');
                 }
 
-                const data = await response.json();
-                
-                if (data.status === 'ok' && data.data) {
-                    displayResults(data.data);
-                } else {
-                    throw new Error(data.mess || 'Could not fetch video. The URL might be invalid, private, or the service is temporarily down.');
-                }
+                const htmlContent = await response.text();
+                displayResults(htmlContent);
 
             } catch (error) {
                 console.error('Error fetching video:', error);
@@ -147,34 +141,49 @@
 
         function displayResults(htmlContent) {
             resultDiv.classList.remove('hidden');
-            
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = htmlContent;
 
-            const thumbnail = tempDiv.querySelector('.video-thumbnail-img')?.outerHTML || '';
-            const title = tempDiv.querySelector('.video-title')?.outerHTML || '';
-            const author = tempDiv.querySelector('.video-author-name')?.outerHTML || '';
-            const downloadItems = tempDiv.querySelector('.download-items')?.outerHTML || '';
+            const downloadLinks = tempDiv.querySelectorAll('.download_link');
+
+            // If no download links are found in the response, the API failed.
+            if (downloadLinks.length === 0) {
+                const errorMessage = tempDiv.querySelector('h2')?.textContent || 'Could not fetch video. It might be private, deleted, or the URL is incorrect.';
+                showError(errorMessage);
+                return;
+            }
+
+            const thumbnail = tempDiv.querySelector('.result_overlay img')?.outerHTML || '';
+            const title = tempDiv.querySelector('.maintext')?.outerHTML || '';
+            
+            const linksContainer = document.createElement('div');
+            linksContainer.className = 'w-full flex flex-col items-center gap-3 mt-4';
+
+            downloadLinks.forEach(link => {
+                const newLink = document.createElement('a');
+                newLink.href = link.href;
+                newLink.target = '_blank';
+                newLink.rel = 'noopener noreferrer'; // Security best practice
+
+                if (link.textContent.includes('Without watermark')) {
+                    newLink.className = 'block w-full max-w-xs bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 text-center no-underline';
+                    newLink.innerHTML = `<i class="fas fa-video mr-2"></i> Download Video`;
+                    linksContainer.appendChild(newLink);
+                } else if (link.textContent.includes('Download MP3')) {
+                     newLink.className = 'block w-full max-w-xs bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 text-center no-underline';
+                    newLink.innerHTML = `<i class="fas fa-music mr-2"></i> Download Audio (MP3)`;
+                    linksContainer.appendChild(newLink);
+                }
+            });
 
             resultDiv.innerHTML = `
                 <div class="bg-gray-700/50 rounded-lg p-6 flex flex-col items-center gap-4">
                     ${thumbnail}
-                    <div class="text-center">
-                        ${author}
+                    <div class="text-center font-semibold">
                         ${title}
                     </div>
-                    <div class="w-full flex flex-col items-center gap-3 mt-4">
-                         ${downloadItems}
-                    </div>
+                    ${linksContainer.outerHTML}
                 </div>`;
-            
-            const downloadLinks = resultDiv.querySelectorAll('.download-items a');
-            downloadLinks.forEach(link => {
-                link.className = '';
-                link.classList.add('block', 'w-full', 'max-w-xs', 'bg-green-500', 'hover:bg-green-600', 'text-white', 'font-bold', 'py-3', 'px-6', 'rounded-lg', 'transition-transform', 'transform', 'hover:scale-105', 'text-center', 'no-underline');
-                link.innerHTML = `<i class="fas fa-download mr-2"></i> ${link.textContent}`;
-                link.target = "_blank";
-            });
         }
 
     </script>

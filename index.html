@@ -74,16 +74,23 @@
         const statusDiv = document.getElementById('status');
         const resultDiv = document.getElementById('result');
 
-        // UPDATED API ENDPOINT: Using another service.
-        // These free APIs are unstable. If this one fails, it may need to be replaced again.
         const API_ENDPOINT = 'https://savetik.co/api/ajaxSearch';
 
         downloadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const videoUrl = urlInput.value.trim();
+            
+            // Regex to check for a valid TikTok URL format. This handles standard and shortened URLs.
+            const tiktokUrlRegex = /^(https?:\/\/)?(www\.)?(tiktok\.com\/.*\/video\/\d+|vm\.tiktok\.com\/[a-zA-Z0-9]+)/;
 
             if (!videoUrl) {
                 showError('Please paste a TikTok URL.');
+                return;
+            }
+            
+            // NEW: Validate the URL format before sending the request to prevent unnecessary API calls with bad data.
+            if (!tiktokUrlRegex.test(videoUrl)) {
+                showError('That doesn\'t look like a valid TikTok URL. Please copy the full link from the share button.');
                 return;
             }
 
@@ -106,7 +113,6 @@
 
                 const data = await response.json();
                 
-                // The new API returns HTML content in the 'data' field when the status is 'ok'
                 if (data.status === 'ok' && data.data) {
                     displayResults(data.data);
                 } else {
@@ -142,17 +148,14 @@
         function displayResults(htmlContent) {
             resultDiv.classList.remove('hidden');
             
-            // Create a temporary container to parse the HTML string
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = htmlContent;
 
-            // Extract the parts we want to display to avoid injecting unwanted scripts or styles
             const thumbnail = tempDiv.querySelector('.video-thumbnail-img')?.outerHTML || '';
             const title = tempDiv.querySelector('.video-title')?.outerHTML || '';
             const author = tempDiv.querySelector('.video-author-name')?.outerHTML || '';
             const downloadItems = tempDiv.querySelector('.download-items')?.outerHTML || '';
 
-            // Construct clean HTML to inject into our page
             resultDiv.innerHTML = `
                 <div class="bg-gray-700/50 rounded-lg p-6 flex flex-col items-center gap-4">
                     ${thumbnail}
@@ -165,13 +168,12 @@
                     </div>
                 </div>`;
             
-            // The new API returns a full HTML block. We need to find the new buttons and style them.
             const downloadLinks = resultDiv.querySelectorAll('.download-items a');
             downloadLinks.forEach(link => {
-                link.className = ''; // Clear existing classes
+                link.className = '';
                 link.classList.add('block', 'w-full', 'max-w-xs', 'bg-green-500', 'hover:bg-green-600', 'text-white', 'font-bold', 'py-3', 'px-6', 'rounded-lg', 'transition-transform', 'transform', 'hover:scale-105', 'text-center', 'no-underline');
                 link.innerHTML = `<i class="fas fa-download mr-2"></i> ${link.textContent}`;
-                link.target = "_blank"; // Ensure download links open in a new tab
+                link.target = "_blank";
             });
         }
 

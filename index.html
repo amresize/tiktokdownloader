@@ -36,7 +36,7 @@
             </div>
 
             <!-- Input Form -->
-            <form id="download-form" class="flex flex-col sm-flex-row gap-4">
+            <form id="download-form" class="flex flex-col sm:flex-row gap-4">
                 <input 
                     id="tiktok-url"
                     type="text" 
@@ -74,8 +74,9 @@
         const statusDiv = document.getElementById('status');
         const resultDiv = document.getElementById('result');
 
-        // This API returns JSON, which is much more stable than parsing HTML.
-        const API_ENDPOINT = 'https://co.wuk.sh/api/json';
+        // NEW: Redundant API endpoints for reliability
+        const PRIMARY_API_ENDPOINT = 'https://co.wuk.sh/api/json';
+        const FALLBACK_API_ENDPOINT = 'https://tikmate.app/abc?url=dl';
 
         downloadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -83,122 +84,105 @@
             
             const tiktokUrlRegex = /^(https?:\/\/)?(www\.)?(tiktok\.com\/.*\/video\/\d+|vm\.tiktok\.com\/[a-zA-Z0-9]+)/;
 
-            if (!videoUrl) {
-                showError('Please paste a TikTok URL.');
-                return;
-            }
-            
-            if (!tiktokUrlRegex.test(videoUrl)) {
-                showError('That doesn\'t look like a valid TikTok URL. Please copy the full link from the share button.');
+            if (!videoUrl || !tiktokUrlRegex.test(videoUrl)) {
+                showError('That doesn\'t look like a valid TikTok URL.');
                 return;
             }
 
             clearResults();
             showSpinner();
+            await fetchFromPrimaryAPI(videoUrl);
+        });
 
+        async function fetchFromPrimaryAPI(videoUrl) {
             try {
-                const response = await fetch(API_ENDPOINT, {
+                const response = await fetch(PRIMARY_API_ENDPOINT, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        url: videoUrl,
-                        isNoTTWatermark: true // Request no watermark version
-                    })
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify({ url: videoUrl, isNoTTWatermark: true })
                 });
                 
-                // NEW: More detailed error checking based on the HTTP response status.
-                if (!response.ok) {
-                    let errorText = `Error: ${response.status} ${response.statusText}.`;
-                    try {
-                        const errorData = await response.json();
-                        if (errorData && errorData.text) {
-                            errorText = errorData.text; // Use the API's specific error message if available.
-                        }
-                    } catch (jsonError) {
-                         // The error response wasn't valid JSON, stick with the status text.
-                    }
-                    throw new Error(errorText);
-                }
-
+                if (!response.ok) throw new Error('Primary API returned a network error.');
+                
                 const data = await response.json();
-                displayResults(data);
+
+                if (data.status === 'error' || (!data.url && data.status !== 'picker')) {
+                    throw new Error('Primary API could not process the link.');
+                }
+                
+                hideSpinner();
+                displayResultsFromPrimaryAPI(data);
 
             } catch (error) {
-                console.error('Error fetching video:', error);
-                showError(error.message || 'An unexpected error occurred.');
-            } finally {
-                hideSpinner();
+                console.warn('Primary API failed, trying fallback:', error);
+                await fetchFromFallbackAPI(videoUrl); // If primary fails, automatically try the fallback.
             }
-        });
-        
-        function showSpinner() {
-            statusDiv.innerHTML = '<div class="spinner mx-auto"></div>';
         }
 
-        function hideSpinner() {
-            statusDiv.innerHTML = '';
-        }
+        async function fetchFromFallbackAPI(videoUrl) {
+            try {
+                const response = await fetch(FALLBACK_API_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+                    body: `url=${encodeURIComponent(videoUrl)}`
+                });
 
-        function showError(message) {
-            statusDiv.innerHTML = `<p class="text-red-400 bg-red-900/50 p-3 rounded-lg">${message}</p>`;
+                if (!response.ok) throw new Error('Fallback API returned a network error.');
+
+                const htmlContent = await response.text();
+                hideSpinner();
+                displayResultsFromFallbackAPI(htmlContent);
+
+            } catch (error) {
+                console.error('Fallback API also failed:', error);
+                hideSpinner();
+                showError('Both downloader services are currently unavailable. Please try again later.');
+            }
         }
         
+        function showSpinner() { statusDiv.innerHTML = '<div class="spinner mx-auto"></div>'; }
+        function hideSpinner() { statusDiv.innerHTML = ''; }
+        function showError(message) { statusDiv.innerHTML = `<p class="text-red-400 bg-red-900/50 p-3 rounded-lg">${message}</p>`; }
         function clearResults() {
             statusDiv.innerHTML = '';
             resultDiv.innerHTML = '';
             resultDiv.classList.add('hidden');
         }
 
-        // REWRITTEN displayResults to be more robust and handle more API response types.
-        function displayResults(data) {
-            if (data.status === 'error') {
-                showError(data.text || 'Could not process this video link.');
-                return;
-            }
-            
+        function displayResultsFromPrimaryAPI(data) {
             let downloadUrl = data.url;
-
-            // NEW: Handle cases where the API returns a 'picker' for multiple formats.
             if (data.status === 'picker') {
-                // Find the first video URL without a watermark.
-                const videoOption = data.picker.find(item => item.type === 'video' && item.label && item.label.toLowerCase().includes('no watermark'));
-                if (videoOption && videoOption.url) {
-                    downloadUrl = videoOption.url;
-                } else if (data.picker.length > 0) {
-                    // Fallback to the first available URL if no ideal one is found.
-                    downloadUrl = data.picker[0].url;
-                }
-            } else if (data.status !== 'stream' && data.status !== 'success') {
-                showError('The API returned an unexpected response. Please try again.');
-                return;
+                const videoOption = data.picker.find(item => item.type === 'video' && item.label && item.label.toLowerCase().includes('no watermark')) || data.picker.find(item => item.type === 'video');
+                if (videoOption) downloadUrl = videoOption.url;
             }
-
-            if (!downloadUrl) {
-                showError('Could not find a valid download URL in the API response.');
-                return;
-            }
+            if (!downloadUrl) { showError('Could not find a valid download URL.'); return; }
             
             resultDiv.classList.remove('hidden');
+            resultDiv.innerHTML = createResultCard(data.text || 'Your video is ready!', data.thumb, downloadUrl);
+        }
+        
+        function displayResultsFromFallbackAPI(htmlContent) {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlContent;
+            const downloadButton = tempDiv.querySelector('.tik-mate-dl-area-buttons a');
+            if (!downloadButton) { showError('Fallback service could not process this video.'); return; }
 
-            const linksContainer = document.createElement('div');
-            linksContainer.className = 'w-full flex flex-col items-center gap-3 mt-4';
-            
-            const newLink = document.createElement('a');
-            newLink.href = downloadUrl; // The direct download URL from the JSON response
-            newLink.target = '_blank';
-            newLink.rel = 'noopener noreferrer';
-            newLink.className = 'block w-full max-w-xs bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 text-center no-underline';
-            newLink.innerHTML = `<i class="fas fa-video mr-2"></i> Download Video`;
-            linksContainer.appendChild(newLink);
+            const title = tempDiv.querySelector('.video-info p')?.textContent || 'Your video is ready!';
+            const thumb = tempDiv.querySelector('.video-info img')?.src;
+            const downloadUrl = downloadButton.href;
 
-            resultDiv.innerHTML = `
+            resultDiv.classList.remove('hidden');
+            resultDiv.innerHTML = createResultCard(title, thumb, downloadUrl);
+        }
+        
+        function createResultCard(title, thumbUrl, downloadUrl) {
+            return `
                 <div class="bg-gray-700/50 rounded-lg p-6 flex flex-col items-center gap-4">
-                     <p class="text-lg font-semibold text-center">${data.text || 'Your video is ready!'}</p>
-                    <img src="${data.thumb}" class="rounded-lg max-w-xs w-full" alt="Video Thumbnail">
-                    ${linksContainer.outerHTML}
+                     <p class="text-lg font-semibold text-center">${title}</p>
+                    ${thumbUrl ? `<img src="${thumbUrl}" class="rounded-lg max-w-xs w-full" alt="Video Thumbnail">` : ''}
+                    <a href="${downloadUrl}" target="_blank" rel="noopener noreferrer" class="block w-full max-w-xs bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 text-center no-underline">
+                        <i class="fas fa-video mr-2"></i> Download Video
+                    </a>
                 </div>`;
         }
     </script>

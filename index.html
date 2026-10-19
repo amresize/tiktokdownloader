@@ -1,191 +1,280 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TikTok Video Downloader</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        /* Simple spinner animation */
-        .spinner {
-            border: 4px solid rgba(0, 0, 0, 0.1);
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            border-left-color: #09f;
-            animation: spin 1s ease infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ClipSave – Save your own videos from a link</title>
+<meta name="description" content="Paste a public video link and save the file to your device. Independent tool, not affiliated with TikTok.">
+<meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F2F4F8; --surface:#FFFFFF; --ink:#101A33; --muted:#5B6683; --line:#DCE1EC;
+  --accent:#2750F0; --accent-ink:#FFFFFF; --ok:#12805C; --err:#B3261E; --err-bg:#FDECEA;
+  --shadow:0 1px 2px rgba(16,26,51,.06),0 12px 32px -12px rgba(16,26,51,.18);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0C1220; --surface:#141C30; --ink:#E9EDF8; --muted:#97A3C2; --line:#25304D;
+    --accent:#6C8CFF; --accent-ink:#0C1220; --ok:#4CD0A0; --err:#FF8A80; --err-bg:#2D1618;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px -12px rgba(0,0,0,.6);
+  }
+}
+*{box-sizing:border-box;margin:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:'Instrument Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  background:var(--bg);color:var(--ink);line-height:1.55;min-height:100vh;
+  display:flex;flex-direction:column;
+  padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0);
+}
+a{color:var(--accent)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px}
+.wrap{width:100%;max-width:720px;margin:0 auto;padding:0 20px}
+header{padding:20px 0}
+.brand{font-weight:700;font-size:1.15rem;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+.brand svg{width:26px;height:26px;color:var(--accent)}
+main{flex:1;padding:clamp(24px,7vw,72px) 0 40px}
+h1{font-size:clamp(2rem,7vw,3.4rem);line-height:1.04;letter-spacing:-.03em;font-weight:700;max-width:14ch}
+.lead{color:var(--muted);margin-top:16px;max-width:52ch;font-size:1.05rem}
+
+.field{
+  margin-top:32px;display:flex;align-items:center;gap:6px;
+  background:var(--surface);border:1.5px solid var(--line);border-radius:16px;
+  padding:6px;box-shadow:var(--shadow);transition:border-color .15s;
+}
+.field:focus-within{border-color:var(--accent)}
+.field input{
+  flex:1;min-width:0;border:0;background:transparent;color:var(--ink);
+  font:inherit;font-size:1rem;padding:12px 12px;outline:0;
+}
+.field input::placeholder{color:var(--muted)}
+button,.btn{
+  font:inherit;font-weight:600;cursor:pointer;border:0;border-radius:11px;
+  padding:12px 18px;display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  text-decoration:none;min-height:46px;
+}
+.btn-primary{background:var(--accent);color:var(--accent-ink)}
+.btn-primary:hover{filter:brightness(1.08)}
+.btn-primary:disabled{opacity:.6;cursor:progress}
+.btn-quiet{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.btn-quiet:hover{border-color:var(--muted)}
+#paste{background:transparent;color:var(--muted);padding:12px}
+#paste:hover{color:var(--ink)}
+.note{margin-top:12px;font-size:.88rem;color:var(--muted)}
+
+#status{margin-top:24px}
+.msg{padding:14px 16px;border-radius:12px;font-size:.95rem}
+.msg.err{background:var(--err-bg);color:var(--err)}
+.msg.load{display:flex;align-items:center;gap:12px;color:var(--muted)}
+.spin{width:20px;height:20px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.card{
+  margin-top:24px;background:var(--surface);border:1px solid var(--line);border-radius:18px;
+  box-shadow:var(--shadow);overflow:hidden;display:grid;grid-template-columns:200px 1fr;
+  animation:reveal .35s ease-out;
+}
+@keyframes reveal{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.thumb{background:var(--line) center/cover no-repeat;min-height:260px}
+.info{padding:20px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.info h2{font-size:1.05rem;line-height:1.35;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.by{color:var(--muted);font-size:.9rem}
+.actions{margin-top:auto;padding-top:14px;display:flex;flex-direction:column;gap:10px}
+.saved{color:var(--ok);font-size:.9rem;font-weight:600;min-height:1.4em}
+@media (max-width:560px){
+  .card{grid-template-columns:1fr}
+  .thumb{min-height:0;aspect-ratio:16/10}
+  .field{flex-wrap:wrap}
+  .field input{flex-basis:100%;order:1}
+  #paste{order:2;flex:1;border:1.5px solid var(--line)}
+  #go{order:3;flex:2}
+}
+
+footer{border-top:1px solid var(--line);padding:24px 0 32px;color:var(--muted);font-size:.85rem}
+footer p+p{margin-top:8px}
+footer button{background:none;color:var(--accent);padding:0;min-height:0;font-weight:500;text-decoration:underline}
+dialog{
+  border:1px solid var(--line);border-radius:18px;background:var(--surface);color:var(--ink);
+  max-width:min(560px,calc(100vw - 32px));max-height:85vh;padding:0;box-shadow:var(--shadow);
+}
+dialog::backdrop{background:rgba(8,12,24,.55)}
+.dlg{padding:24px;overflow:auto;max-height:85vh}
+.dlg h2{font-size:1.2rem;margin-bottom:12px}
+.dlg h3{font-size:.95rem;margin:16px 0 4px}
+.dlg p{font-size:.92rem;color:var(--muted)}
+.dlg .btn{margin-top:20px;width:100%}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
 </head>
-<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen">
-    <div class="container mx-auto p-4 max-w-2xl w-full">
-        <div class="bg-gray-800 rounded-2xl shadow-2xl p-6 md:p-8">
-            <!-- Header -->
-            <div class="text-center mb-8">
-                <i class="fab fa-tiktok text-5xl mb-4 text-cyan-400"></i>
-                <h1 class="text-3xl md:text-4xl font-bold">TikTok Video Downloader</h1>
-                <p class="text-gray-400 mt-2">Paste a TikTok video link below to download it without a watermark.</p>
-            </div>
-
-            <!-- Input Form -->
-            <form id="download-form" class="flex flex-col sm:flex-row gap-4">
-                <input 
-                    id="tiktok-url"
-                    type="text" 
-                    placeholder="Paste TikTok URL here..." 
-                    class="flex-grow bg-gray-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500 w-full"
-                    required
-                >
-                <button 
-                    type="submit" 
-                    class="bg-cyan-500 hover:bg-cyan-600 text-gray-900 font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 flex items-center justify-center"
-                >
-                    <i class="fas fa-download mr-2"></i>
-                    <span>Download</span>
-                </button>
-            </form>
-
-            <!-- Status/Result Area -->
-            <div id="status" class="mt-8 text-center">
-                <!-- Spinner will be shown here -->
-            </div>
-            <div id="result" class="mt-8 hidden">
-                <!-- Results will be populated here -->
-            </div>
-        </div>
-        
-        <!-- Disclaimer Footer -->
-        <footer class="text-center mt-8 text-gray-500 text-sm">
-            <p>This tool is for personal use only. Please respect the intellectual property rights of the content creators.</p>
-        </footer>
+<body>
+<header>
+  <div class="wrap">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0l-4.5-4.5M12 15l4.5-4.5M4 20h16"/></svg>
+      ClipSave
     </div>
+  </div>
+</header>
 
-    <script>
-        const downloadForm = document.getElementById('download-form');
-        const urlInput = document.getElementById('tiktok-url');
-        const statusDiv = document.getElementById('status');
-        const resultDiv = document.getElementById('result');
+<main>
+  <div class="wrap">
+    <h1>Save a video from its link.</h1>
+    <p class="lead">Paste the link to a public TikTok video and download the file to your phone or computer. No account, no app.</p>
 
-        // NEW: Redundant API endpoints for reliability
-        const PRIMARY_API_ENDPOINT = 'https://co.wuk.sh/api/json';
-        const FALLBACK_API_ENDPOINT = 'https://tikmate.app/abc?url=dl';
+    <form id="form" class="field" novalidate>
+      <input id="url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"
+             placeholder="Paste a TikTok video link" aria-label="TikTok video link">
+      <button type="button" id="paste" aria-label="Paste from clipboard">Paste</button>
+      <button type="submit" id="go" class="btn-primary">Get video</button>
+    </form>
+    <p class="note">Only save videos you made or have the creator’s permission to download.</p>
 
-        downloadForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const videoUrl = urlInput.value.trim();
-            
-            const tiktokUrlRegex = /^(https?:\/\/)?(www\.)?(tiktok\.com\/.*\/video\/\d+|vm\.tiktok\.com\/[a-zA-Z0-9]+)/;
+    <div id="status" role="status" aria-live="polite"></div>
+    <div id="result"></div>
+  </div>
+</main>
 
-            if (!videoUrl || !tiktokUrlRegex.test(videoUrl)) {
-                showError('That doesn\'t look like a valid TikTok URL.');
-                return;
-            }
+<footer>
+  <div class="wrap">
+    <p>ClipSave is an independent tool. It is not affiliated with, endorsed by, or sponsored by TikTok or ByteDance. TikTok is a trademark of its respective owner.</p>
+    <p>Videos belong to their creators. Don’t re-upload or redistribute other people’s content. <button type="button" id="open-terms">Terms &amp; privacy</button></p>
+  </div>
+</footer>
 
-            clearResults();
-            showSpinner();
-            await fetchFromPrimaryAPI(videoUrl);
-        });
+<dialog id="terms">
+  <div class="dlg">
+    <h2>Terms &amp; privacy</h2>
+    <h3>Permitted use</h3>
+    <p>Use ClipSave only for videos you created or have permission to save, or for personal use where the law in your country allows it. You are responsible for how you use downloaded content, including respecting copyright and TikTok’s terms.</p>
+    <h3>No affiliation</h3>
+    <p>This site is not run by TikTok or ByteDance. It does not host any videos; files are delivered by a third-party media service.</p>
+    <h3>Privacy</h3>
+    <p>ClipSave has no accounts, cookies, or analytics, and stores nothing in your browser. The link you paste is sent to a third-party service to fetch the video, which has its own privacy practices.</p>
+    <h3>No warranty</h3>
+    <p>The service is provided as is and may stop working at any time if the underlying service changes.</p>
+    <h3>Takedown</h3>
+    <p>Rights holders can request removal of the tool or report abuse by contacting the site owner through the repository’s issue tracker.</p>
+    <button type="button" class="btn btn-primary" id="close-terms">Close</button>
+  </div>
+</dialog>
 
-        async function fetchFromPrimaryAPI(videoUrl) {
-            try {
-                const response = await fetch(PRIMARY_API_ENDPOINT, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                    body: JSON.stringify({ url: videoUrl, isNoTTWatermark: true })
-                });
-                
-                if (!response.ok) throw new Error('Primary API returned a network error.');
-                
-                const data = await response.json();
+<script>
+/* ---- Configuration ----
+   API_URL: endpoint that resolves a TikTok link to file URLs.
+   If a public endpoint stops working, point this at your own proxy
+   (for example a Cloudflare Worker) that returns the same JSON shape. */
+const CONFIG = {
+  API_URL: 'https://www.tikwm.com/api/',
+  API_ORIGIN: 'https://www.tikwm.com'
+};
 
-                if (data.status === 'error' || (!data.url && data.status !== 'picker')) {
-                    throw new Error('Primary API could not process the link.');
-                }
-                
-                hideSpinner();
-                displayResultsFromPrimaryAPI(data);
+const $ = id => document.getElementById(id);
+const form = $('form'), input = $('url'), go = $('go');
+const statusEl = $('status'), resultEl = $('result');
 
-            } catch (error) {
-                console.warn('Primary API failed, trying fallback:', error);
-                await fetchFromFallbackAPI(videoUrl); // If primary fails, automatically try the fallback.
-            }
-        }
+// Accepts full video links, short links (vm./vt.), and tiktok.com/t/ links
+const URL_RE = /^https?:\/\/((www|m|vm|vt)\.)?tiktok\.com\/(@[\w.\-]+\/(video|photo)\/\d+|t\/[\w\-]+|[\w\-]+\/?)(\?.*)?$/i;
 
-        async function fetchFromFallbackAPI(videoUrl) {
-            try {
-                const response = await fetch(FALLBACK_API_ENDPOINT, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-                    body: `url=${encodeURIComponent(videoUrl)}`
-                });
+function esc(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function abs(u){ return !u ? '' : (u.startsWith('http') ? u : CONFIG.API_ORIGIN + u); }
+function clear(){ statusEl.innerHTML=''; resultEl.innerHTML=''; }
+function error(m){ statusEl.innerHTML = '<div class="msg err">'+esc(m)+'</div>'; }
+function loading(){ statusEl.innerHTML = '<div class="msg load"><span class="spin"></span>Looking up your video…</div>'; }
 
-                if (!response.ok) throw new Error('Fallback API returned a network error.');
+$('paste').addEventListener('click', async () => {
+  try {
+    const t = await navigator.clipboard.readText();
+    if (t) { input.value = t.trim(); input.focus(); }
+  } catch { input.focus(); error('Your browser blocked clipboard access. Paste the link into the box manually.'); }
+});
 
-                const htmlContent = await response.text();
-                hideSpinner();
-                displayResultsFromFallbackAPI(htmlContent);
+form.addEventListener('submit', async e => {
+  e.preventDefault();
+  const link = input.value.trim();
+  clear();
+  if (!link) return error('Paste a TikTok video link first.');
+  if (!URL_RE.test(link)) return error('That doesn’t look like a TikTok video link. Copy it from the Share menu in TikTok and try again.');
 
-            } catch (error) {
-                console.error('Fallback API also failed:', error);
-                hideSpinner();
-                showError('Both downloader services are currently unavailable. Please try again later.');
-            }
-        }
-        
-        function showSpinner() { statusDiv.innerHTML = '<div class="spinner mx-auto"></div>'; }
-        function hideSpinner() { statusDiv.innerHTML = ''; }
-        function showError(message) { statusDiv.innerHTML = `<p class="text-red-400 bg-red-900/50 p-3 rounded-lg">${message}</p>`; }
-        function clearResults() {
-            statusDiv.innerHTML = '';
-            resultDiv.innerHTML = '';
-            resultDiv.classList.add('hidden');
-        }
+  go.disabled = true; loading();
+  try {
+    const res = await fetch(CONFIG.API_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'},
+      body: new URLSearchParams({ url: link, hd: '1' })
+    });
+    if (!res.ok) throw new Error('http');
+    const json = await res.json();
+    if (json.code !== 0 || !json.data) {
+      statusEl.innerHTML = '';
+      return error(json.msg && /private|not|found|exist/i.test(json.msg)
+        ? 'This video is private, removed, or not available. Only public videos can be saved.'
+        : 'We couldn’t get this video. Check the link and try again.');
+    }
+    statusEl.innerHTML = '';
+    render(json.data);
+  } catch {
+    statusEl.innerHTML = '';
+    error('The download service isn’t responding right now. Please try again in a few minutes.');
+  } finally { go.disabled = false; }
+});
 
-        function displayResultsFromPrimaryAPI(data) {
-            let downloadUrl = data.url;
-            if (data.status === 'picker') {
-                const videoOption = data.picker.find(item => item.type === 'video' && item.label && item.label.toLowerCase().includes('no watermark')) || data.picker.find(item => item.type === 'video');
-                if (videoOption) downloadUrl = videoOption.url;
-            }
-            if (!downloadUrl) { showError('Could not find a valid download URL.'); return; }
-            
-            resultDiv.classList.remove('hidden');
-            resultDiv.innerHTML = createResultCard(data.text || 'Your video is ready!', data.thumb, downloadUrl);
-        }
-        
-        function displayResultsFromFallbackAPI(htmlContent) {
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = htmlContent;
-            const downloadButton = tempDiv.querySelector('.tik-mate-dl-area-buttons a');
-            if (!downloadButton) { showError('Fallback service could not process this video.'); return; }
+function render(d){
+  const files = [];
+  if (d.hdplay) files.push({label:'Download video (HD)', url:abs(d.hdplay), name:'video-hd.mp4', primary:true});
+  if (d.play)   files.push({label:'Download video', url:abs(d.play), name:'video.mp4', primary: !d.hdplay});
+  if (d.music)  files.push({label:'Download audio (MP3)', url:abs(d.music), name:'audio.mp3'});
+  if (!files.length) return error('No downloadable file was found for this link.');
 
-            const title = tempDiv.querySelector('.video-info p')?.textContent || 'Your video is ready!';
-            const thumb = tempDiv.querySelector('.video-info img')?.src;
-            const downloadUrl = downloadButton.href;
+  const author = d.author && (d.author.nickname || d.author.unique_id);
+  resultEl.innerHTML =
+    '<article class="card">' +
+      '<div class="thumb" style="background-image:url(\''+esc(abs(d.cover||d.origin_cover||'')).replace(/'/g,'%27')+'\')" role="img" aria-label="Video thumbnail"></div>' +
+      '<div class="info">' +
+        '<h2>'+esc(d.title || 'Untitled video')+'</h2>' +
+        (author ? '<p class="by">by '+esc(author)+(d.duration?' · '+d.duration+'s':'')+'</p>' : '') +
+        '<div class="actions" id="actions"></div>' +
+        '<p class="saved" id="saved" aria-live="polite"></p>' +
+      '</div>' +
+    '</article>';
 
-            resultDiv.classList.remove('hidden');
-            resultDiv.innerHTML = createResultCard(title, thumb, downloadUrl);
-        }
-        
-        function createResultCard(title, thumbUrl, downloadUrl) {
-            return `
-                <div class="bg-gray-700/50 rounded-lg p-6 flex flex-col items-center gap-4">
-                     <p class="text-lg font-semibold text-center">${title}</p>
-                    ${thumbUrl ? `<img src="${thumbUrl}" class="rounded-lg max-w-xs w-full" alt="Video Thumbnail">` : ''}
-                    <a href="${downloadUrl}" target="_blank" rel="noopener noreferrer" class="block w-full max-w-xs bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 text-center no-underline">
-                        <i class="fas fa-video mr-2"></i> Download Video
-                    </a>
-                </div>`;
-        }
-    </script>
+  const actions = $('actions');
+  files.forEach(f => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn ' + (f.primary ? 'btn-primary' : 'btn-quiet');
+    b.textContent = f.label;
+    b.addEventListener('click', () => save(f, b));
+    actions.appendChild(b);
+  });
+  resultEl.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+async function save(f, btn){
+  const saved = $('saved'), label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Preparing…'; saved.textContent = '';
+  try {
+    const r = await fetch(f.url);
+    if (!r.ok) throw new Error('http');
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = f.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    saved.textContent = 'Saved. Check your downloads.';
+  } catch {
+    // Cross-origin fallback: open the file so the browser can play or save it
+    window.open(f.url, '_blank', 'noopener');
+    saved.textContent = 'Opened in a new tab. Use the browser’s save option there.';
+  } finally { btn.disabled = false; btn.textContent = label; }
+}
+
+const dlg = $('terms');
+$('open-terms').addEventListener('click', () => dlg.showModal());
+$('close-terms').addEventListener('click', () => dlg.close());
+dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+</script>
 </body>
 </html>
-
